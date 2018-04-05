@@ -1,0 +1,67 @@
+# read in the libraries we're going to use
+setwd("F:/Analytics/LARA/Topic Modelling")
+
+library(tidyverse) # general utility & workflow functions
+library(tidytext) # tidy implimentation of NLP methods
+library(topicmodels) # for LDA topic modelling 
+library(tm) # general text mining functions, making document term matrixes
+library(SnowballC) # for stemming
+
+
+
+reviews <- read_csv("deceptive-opinion.csv")
+
+
+# function to get & plot the most informative terms by a specificed number
+# of topics, using LDA
+top_terms_by_topic <- function(
+                                input_text,
+                                plot = T,
+                                number_of_topics_k = 4
+                              )
+{# create a corpus (type of object expected by tm) and document term matrix
+  Review_Corpus <- Corpus(VectorSource(input_text)) # make a corpus object
+  Review_DTM  <- DocumentTermMatrix(Review_Corpus)# get the count of words/document
+  
+  # remove any empty rows in our document term matrix (if there are any 
+  # we'll get an error when we try to run our LDA)
+  Unique_Review_DTM <- Review_DTM[unique(Review_DTM$i),]# get the index of each unique value# get the index of each unique value
+  
+  
+  # preform LDA & get the words/topic in a tidy text format
+  Review_LDA <- LDA(Review_DTM, k=number_of_topics_k, control = list(seed=1234))
+  Review_Words_topics <- tidy(Review_LDA,matrix="beta")
+  Review_Topics_Doc <- tidy(Review_LDA, matrix="gamma")
+  
+  # get the top ten terms for each topic
+  top_terms <- Review_Words_topics %>% # take the topics data frame and..
+                group_by(topic)%>%# treat each topic as a different group
+                top_n(10,beta)%>% # get the top 10 most informative words
+                ungroup()%>% # ungroup
+                arrange(topic, -beta) # arrange words in descending informativeness
+  
+  # if the user asks for a plot (TRUE by default)
+if(plot==T)
+      {
+        # plot the top ten terms for each topic in order
+        top_terms %>%# take the top terms
+        mutate(term = reorder(term, beta)) %>% # sort terms by beta value 
+        ggplot(aes(term, beta,fill = factor(topic)))+ # plot beta by theme
+        geom_col(show.legend = FALSE)+# as a bar plot
+        facet_wrap(~ topic, scales = "free")+ # which each topic in a seperate plot
+        labs(x= NULL, y = "Beta") +# no x label, change y label 
+        coord_flip()
+      }
+  else
+      {
+        # if the user does not request a plot
+        # return a list of sorted terms instead
+        return(top_terms)
+      }
+}
+
+
+# plot top ten terms in the hotel reviews by topic
+top_terms_by_topic(reviews$text, number_of_topics_k = 2)
+
+
